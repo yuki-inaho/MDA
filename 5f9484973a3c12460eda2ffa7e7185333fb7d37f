@@ -1,0 +1,17 @@
+Why:
+- The browser point cloud could still show far-depth tail outliers that are not useful for inspecting the reconstructed geometry.
+- The saved result needed a portable visualization path for opening on another machine with Rerun.
+
+How:
+- Refactored result point-cloud creation into a shared PointCloudFrame builder used by the FastAPI viewer and the Rerun exporter.
+- Added default depth_percentile=95 clipping, p95 frame stats, and a UI control to disable or tune the far-depth clip.
+- Added src/testing/result_to_rerun.py to write per-frame camera-space RGB/depth/point-cloud .rrd recordings.
+- Added the optional viz extra for rerun-sdk, just recipes for .rrd export/open/serve, README usage notes, and .rrd/.rbl gitignore entries.
+
+Validation:
+- uv lock
+- uv run python -m compileall -q src/testing/result_viewer.py src/testing/result_to_rerun.py
+- API check: frame 0 p95 effective_depth_max=1.333931, rejected_far_count=194
+- Rerun smoke export: /tmp/mda_result_smoke.rrd, 3 frames
+- Rerun serve CLI smoke with --serve-web/--bind
+- Generated shareable recording: eval_results/demo/color_000200_001000_512_balanced_chunk16/mda_mog_sky_l2/mda_result_p95_stride2.rrd, 401 frames, 558M
