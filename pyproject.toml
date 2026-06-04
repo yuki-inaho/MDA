@@ -57,7 +57,8 @@ app = ["gradio>=5", "pillow>=9.0"] # requires that python3>=3.10
 # gsplat builds a CUDA extension and is not required for the demo path.
 gs = []
 train = ["hydra-core", "lightning", "rootutils", "torchmetrics", "peft", "rich"]
-all = ["mda[app]"]
+viz = ["rerun-sdk>=0.23.1"]
+all = ["mda[app,viz]"]
 
 [tool.uv.sources]
 torch = { index = "pytorch-cu128" }

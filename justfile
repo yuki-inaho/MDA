@@ -5,6 +5,7 @@ frames := "data/Color_000200_001000_ccw_frames"
 out := "eval_results/demo/color_000200_001000_512_chunk16"
 model := "mda_mog_sky_l2"
 view_result := "eval_results/demo/color_000200_001000_512_balanced_chunk16/mda_mog_sky_l2"
+view_rrd := "eval_results/demo/color_000200_001000_512_balanced_chunk16/mda_mog_sky_l2/mda_result_p95_stride2.rrd"
 
 default:
     just --list
@@ -153,3 +154,22 @@ viewer-stop port="7861":
     else \
         echo "pidfile not found: $pidfile"; \
     fi
+
+viewer-rrd result=view_result rrd="" max_points="12000" frame_stride="2" depth_percentile="95":
+    @out="{{rrd}}"; \
+    if [[ -z "$out" ]]; then out="{{result}}/mda_result_p95_stride2.rrd"; fi; \
+    uv run --extra viz python src/testing/result_to_rerun.py \
+        --result_dir "{{result}}" \
+        --rrd "$out" \
+        --max_points "{{max_points}}" \
+        --frame_stride "{{frame_stride}}" \
+        --depth_percentile "{{depth_percentile}}"
+
+rerun-open rrd=view_rrd:
+    uv run --extra viz rerun "{{rrd}}"
+
+rerun-serve rrd=view_rrd web_port="9090" grpc_port="9876" bind="0.0.0.0":
+    @echo "web viewer: http://127.0.0.1:{{web_port}}"
+    @echo "remote viewer URL usually needs this host IP instead of 127.0.0.1:"
+    @echo "http://<host-ip>:{{web_port}}/?url=rerun%2Bhttp%3A%2F%2F<host-ip>%3A{{grpc_port}}%2Fproxy"
+    uv run --extra viz rerun --serve-web --bind "{{bind}}" --web-viewer-port "{{web_port}}" --port "{{grpc_port}}" "{{rrd}}"

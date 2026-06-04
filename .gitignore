@@ -42,6 +42,8 @@ temp*.png
 /logs
 /checkpoints
 /eval_results
+*.rrd
+*.rbl
 /src/ppd
 /expert_exports
 /docs

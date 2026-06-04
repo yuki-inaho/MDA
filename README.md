@@ -98,7 +98,9 @@ The default model is `mda_mog_sky_l2`. Override it with `--model_name` (see the 
 
 `src/testing/result_viewer.py` serves a lightweight browser viewer for saved
 `run_inference_video.py` outputs. It shows the RGB frame, colored depth image,
-and a loopable per-frame point cloud reconstructed from `raw/*.npz`.
+and a loopable per-frame point cloud reconstructed from `raw/*.npz`. The point
+cloud view clips far outliers at the 95th depth percentile by default; set
+`Depth pctl` to `0` or `100` in the UI to disable that clip.
 
 ```bash
 just viewer-bg eval_results/demo/color_000200_001000_512_balanced_chunk16/mda_mog_sky_l2
@@ -106,6 +108,22 @@ just viewer-bg eval_results/demo/color_000200_001000_512_balanced_chunk16/mda_mo
 ```
 
 Use `just viewer-status` to check the server and `just viewer-stop` to stop it.
+
+To inspect the same results in Rerun or share them with another machine, export
+a `.rrd` recording:
+
+```bash
+just viewer-rrd eval_results/demo/color_000200_001000_512_balanced_chunk16/mda_mog_sky_l2
+just rerun-open
+# or serve it through the Rerun web viewer
+just rerun-serve
+```
+
+The default `viewer-rrd` recipe uses `frame_stride=2`, `max_points=12000`, and
+`depth_percentile=95` to keep the recording practical to move between machines.
+The Rerun export is a per-frame camera-space point cloud because the standard
+demo result does not include global camera poses unless side-view export was
+enabled during inference.
 
 ## 🏋️ Training
 

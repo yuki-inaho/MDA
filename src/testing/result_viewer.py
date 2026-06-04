@@ -163,6 +163,29 @@ class ResultScene:
         }
 
 
+@dataclass(frozen=True)
+class PointCloudFrame:
+    frame: int
+    input_name: str
+    points: np.ndarray
+    colors: np.ndarray
+    stride: int
+    height: int
+    width: int
+    depth_min: float
+    depth_max: float
+    depth_percentile: float
+    depth_percentile_max: float | None
+    effective_depth_max: float
+    rejected_far_count: int
+    pre_sample_count: int
+    depth_stats: dict[str, float | None]
+    bbox_min: np.ndarray
+    bbox_max: np.ndarray
+    center: np.ndarray
+    display_scale: float
+
+
 def _depth_edge_mask(depth: np.ndarray, rtol: float = 0.03, kernel: int = 3) -> np.ndarray:
     pad = kernel // 2
     padded = np.pad(depth, ((pad, pad), (pad, pad)), mode="edge")
@@ -188,19 +211,20 @@ def _to_png_response(image: np.ndarray) -> Response:
     return Response(content=buf.getvalue(), media_type="image/png")
 
 
-def _point_cloud_payload(
+def _build_point_cloud_frame(
     scene: ResultScene,
     index: int,
     max_points: int,
     stride: int,
     depth_min: float,
     depth_max: float,
+    depth_percentile: float,
     focal_scale: float,
     filter_depth_edges: bool,
     depth_edge_rtol: float,
     mask_black: bool,
     mask_white: bool,
-) -> dict[str, Any]:
+) -> PointCloudFrame:
     raw = scene.raw(index)
     depth = raw["depth_pred"].astype(np.float32, copy=False)
     rgb = raw["rgb"].astype(np.uint8, copy=False)
@@ -217,8 +241,24 @@ def _point_cloud_payload(
     colors = rgb[::stride, ::stride]
     keep = valid[::stride, ::stride] & np.isfinite(z)
 
-    depth_min = _finite_float(depth_min, float(np.nanmin(depth)))
-    depth_max = _finite_float(depth_max, float(np.nanmax(depth)))
+    valid_depth = depth[valid & np.isfinite(depth)]
+    fallback_min = float(valid_depth.min()) if valid_depth.size else 0.0
+    fallback_max = float(valid_depth.max()) if valid_depth.size else 0.0
+    depth_min = _finite_float(depth_min, fallback_min)
+    depth_max = _finite_float(depth_max, fallback_max)
+    depth_percentile = _finite_float(depth_percentile, 0.0)
+
+    percentile_max = None
+    effective_depth_max = depth_max
+    use_depth_percentile = 0.0 < depth_percentile < 100.0
+    if use_depth_percentile:
+        percentile_pool = depth[
+            valid & np.isfinite(depth) & (depth >= depth_min) & (depth <= depth_max)
+        ]
+        if percentile_pool.size:
+            percentile_max = float(np.percentile(percentile_pool, depth_percentile))
+            effective_depth_max = min(depth_max, percentile_max)
+
     keep &= (z >= depth_min) & (z <= depth_max)
     if filter_depth_edges:
         keep &= ~_depth_edge_mask(depth, rtol=depth_edge_rtol)[::stride, ::stride]
@@ -226,6 +266,12 @@ def _point_cloud_payload(
         keep &= colors.sum(axis=-1) >= 16
     if mask_white:
         keep &= ~((colors[..., 0] > 240) & (colors[..., 1] > 240) & (colors[..., 2] > 240))
+    if use_depth_percentile:
+        pre_clip_count = int(keep.sum())
+        keep &= z <= effective_depth_max
+        rejected_far_count = pre_clip_count - int(keep.sum())
+    else:
+        rejected_far_count = 0
 
     fx = fy = max(height, width) * max(float(focal_scale), 0.01)
     cx = (width - 1) * 0.5
@@ -234,6 +280,7 @@ def _point_cloud_payload(
     y = -(ys.astype(np.float32) - cy) / fy * z
     points = np.stack([x, y, -z], axis=-1)[keep]
     colors = colors[keep]
+    pre_sample_count = int(len(points))
 
     if len(points) > max_points:
         sample = np.linspace(0, len(points) - 1, int(max_points)).astype(np.int64)
@@ -258,20 +305,51 @@ def _point_cloud_payload(
 
     points = np.ascontiguousarray(points.astype(np.float32))
     colors = np.ascontiguousarray(colors.astype(np.uint8))
+    return PointCloudFrame(
+        frame=index,
+        input_name=scene.input_name(index),
+        points=points,
+        colors=colors,
+        stride=int(stride),
+        height=int(height),
+        width=int(width),
+        depth_min=float(depth_min),
+        depth_max=float(depth_max),
+        depth_percentile=float(depth_percentile),
+        depth_percentile_max=percentile_max,
+        effective_depth_max=float(effective_depth_max),
+        rejected_far_count=int(rejected_far_count),
+        pre_sample_count=pre_sample_count,
+        depth_stats=depth_stats,
+        bbox_min=bbox_min.astype(np.float32),
+        bbox_max=bbox_max.astype(np.float32),
+        center=center.astype(np.float32),
+        display_scale=float(display_scale),
+    )
+
+
+def _point_cloud_payload(point_cloud: PointCloudFrame) -> dict[str, Any]:
+    points = np.ascontiguousarray(point_cloud.points.astype(np.float32, copy=False))
+    colors = np.ascontiguousarray(point_cloud.colors.astype(np.uint8, copy=False))
     return {
-        "frame": index,
-        "input": scene.input_name(index),
+        "frame": point_cloud.frame,
+        "input": point_cloud.input_name,
         "count": int(len(points)),
-        "stride": int(stride),
-        "height": int(height),
-        "width": int(width),
-        "depth_min": depth_min,
-        "depth_max": depth_max,
-        "depth_stats": depth_stats,
-        "bbox_min": bbox_min.astype(float).tolist(),
-        "bbox_max": bbox_max.astype(float).tolist(),
-        "center": center.astype(float).tolist(),
-        "display_scale": float(display_scale),
+        "pre_sample_count": int(point_cloud.pre_sample_count),
+        "stride": int(point_cloud.stride),
+        "height": int(point_cloud.height),
+        "width": int(point_cloud.width),
+        "depth_min": point_cloud.depth_min,
+        "depth_max": point_cloud.depth_max,
+        "depth_percentile": point_cloud.depth_percentile,
+        "depth_percentile_max": point_cloud.depth_percentile_max,
+        "effective_depth_max": point_cloud.effective_depth_max,
+        "rejected_far_count": int(point_cloud.rejected_far_count),
+        "depth_stats": point_cloud.depth_stats,
+        "bbox_min": point_cloud.bbox_min.astype(float).tolist(),
+        "bbox_max": point_cloud.bbox_max.astype(float).tolist(),
+        "center": point_cloud.center.astype(float).tolist(),
+        "display_scale": float(point_cloud.display_scale),
         "points_b64": base64.b64encode(points.tobytes()).decode("ascii"),
         "colors_b64": base64.b64encode(colors.tobytes()).decode("ascii"),
     }
@@ -314,6 +392,7 @@ def create_app(scene: ResultScene) -> FastAPI:
             "depth_max": float(values.max()) if values.size else None,
             "depth_mean": float(values.mean()) if values.size else None,
             "depth_p01": float(np.percentile(values, 1)) if values.size else None,
+            "depth_p95": float(np.percentile(values, 95)) if values.size else None,
             "depth_p99": float(np.percentile(values, 99)) if values.size else None,
         }
 
@@ -324,6 +403,7 @@ def create_app(scene: ResultScene) -> FastAPI:
         stride: int = Query(0, ge=0, le=64),
         depth_min: float = Query(0.0),
         depth_max: float = Query(float("inf")),
+        depth_percentile: float = Query(95.0, ge=0.0, le=100.0),
         focal_scale: float = Query(1.2, gt=0.01, le=10.0),
         filter_depth_edges: bool = Query(True),
         depth_edge_rtol: float = Query(0.03, gt=0.0, le=1.0),
@@ -331,19 +411,21 @@ def create_app(scene: ResultScene) -> FastAPI:
         mask_white: bool = Query(False),
     ) -> dict[str, Any]:
         scene._check_index(index)
-        return _point_cloud_payload(
+        point_cloud = _build_point_cloud_frame(
             scene=scene,
             index=index,
             max_points=max_points,
             stride=stride,
             depth_min=depth_min,
             depth_max=depth_max,
+            depth_percentile=depth_percentile,
             focal_scale=focal_scale,
             filter_depth_edges=filter_depth_edges,
             depth_edge_rtol=depth_edge_rtol,
             mask_black=mask_black,
             mask_white=mask_white,
         )
+        return _point_cloud_payload(point_cloud)
 
     return app
 
@@ -552,6 +634,7 @@ VIEWER_HTML = r"""<!doctype html>
       <div class="group">
         <label>Depth min <input id="depthMin" type="number" step="0.1" value="0" /></label>
         <label>Depth max <input id="depthMax" type="number" step="0.1" value="1000000" /></label>
+        <label>Depth pctl <input id="depthPercentile" type="number" min="0" max="100" step="1" value="95" /></label>
         <label><span>Filter depth edges</span><input id="edgeFilter" type="checkbox" checked /></label>
         <label>Edge rtol <input id="edgeRtol" type="number" min="0.001" max="1" step="0.005" value="0.03" /></label>
         <label><span>Mask black bg</span><input id="maskBlack" type="checkbox" /></label>
@@ -743,12 +826,18 @@ VIEWER_HTML = r"""<!doctype html>
       gl.bufferData(gl.ARRAY_BUFFER, colors, gl.STATIC_DRAW);
       state.pointCount = payload.count;
       const d = payload.depth_stats;
+      const clip = payload.depth_percentile > 0 && payload.depth_percentile < 100
+        ? ` | p${fmtPct(payload.depth_percentile)} max ${fmt(payload.effective_depth_max)} | far ${payload.rejected_far_count.toLocaleString()}`
+        : "";
       $("cloudStats").textContent =
         `frame ${payload.frame} | points ${payload.count.toLocaleString()} | stride ${payload.stride} | ` +
-        `depth min ${fmt(d.min)} max ${fmt(d.max)} mean ${fmt(d.mean)}`;
+        `depth min ${fmt(d.min)} max ${fmt(d.max)} mean ${fmt(d.mean)}${clip}`;
     }
     function fmt(v) {
       return (v === null || v === undefined || Number.isNaN(v)) ? "n/a" : Number(v).toFixed(3);
+    }
+    function fmtPct(v) {
+      return Number(v).toFixed(Number(v) % 1 === 0 ? 0 : 1);
     }
     async function loadScene() {
       const res = await fetch("/api/scene");
@@ -780,7 +869,7 @@ VIEWER_HTML = r"""<!doctype html>
           `input ${escapeHtml(s.input)}<br>` +
           `valid <strong>${s.valid_pixels.toLocaleString()}</strong><br>` +
           `depth min <strong>${fmt(s.depth_min)}</strong> max <strong>${fmt(s.depth_max)}</strong><br>` +
-          `p01 <strong>${fmt(s.depth_p01)}</strong> p99 <strong>${fmt(s.depth_p99)}</strong>`;
+          `p01 <strong>${fmt(s.depth_p01)}</strong> p95 <strong>${fmt(s.depth_p95)}</strong> p99 <strong>${fmt(s.depth_p99)}</strong>`;
       });
       if (forceCloud || state.playing) await loadPointCloud(frame);
     }
@@ -792,6 +881,7 @@ VIEWER_HTML = r"""<!doctype html>
         stride: $("strideInput").value,
         depth_min: $("depthMin").value,
         depth_max: $("depthMax").value,
+        depth_percentile: $("depthPercentile").value,
         focal_scale: $("focalScale").value,
         filter_depth_edges: $("edgeFilter").checked,
         depth_edge_rtol: $("edgeRtol").value,
@@ -826,7 +916,7 @@ VIEWER_HTML = r"""<!doctype html>
     $("playBtn").addEventListener("click", () => setPlaying(!state.playing));
     $("reloadBtn").addEventListener("click", () => loadPointCloud());
     $("pointSize").addEventListener("input", render);
-    for (const id of ["maxPoints","strideInput","depthMin","depthMax","focalScale","edgeFilter","edgeRtol","maskBlack","maskWhite"]) {
+    for (const id of ["maxPoints","strideInput","depthMin","depthMax","depthPercentile","focalScale","edgeFilter","edgeRtol","maskBlack","maskWhite"]) {
       $(id).addEventListener("change", () => loadPointCloud());
     }
 
