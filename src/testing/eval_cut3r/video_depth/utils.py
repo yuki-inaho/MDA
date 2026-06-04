@@ -49,7 +49,7 @@ def save_rgb_imgs(colors, path):
 
 
 
-def save_depth_maps(pts3ds_self, path, conf_self=None, depth_maps=None):
+def save_depth_maps(pts3ds_self, path, conf_self=None, depth_maps=None, progress_callback=None):
     if depth_maps is None:
         depth_maps = torch.stack([pts3d_self[..., -1] for pts3d_self in pts3ds_self], 0)
     min_depth = depth_maps.min()  # float(torch.quantile(out, 0.01))
@@ -84,6 +84,8 @@ def save_depth_maps(pts3ds_self, path, conf_self=None, depth_maps=None):
         iio.imwrite(img_path, to_save)
         images.append(Image.open(img_path))
         np.save(f"{path}/frame_{(i):04d}.npy", depth_maps[i].detach().cpu().numpy())
+        if progress_callback is not None:
+            progress_callback(i + 1, len(colored_depth), img_path)
 
     return depth_maps
 

@@ -9,6 +9,7 @@
 # Usage:
 #   bash src/testing/run_demo.sh <input_path> [--output_dir DIR] [--model_name NAME]
 #                                             [--size N] [--fps N] [--max_chunk N]
+#                                             [run_inference_video.py options...]
 
 set -euo pipefail
 
@@ -17,9 +18,13 @@ OUTPUT_DIR=""
 SIZE=512
 FPS=15
 MAX_CHUNK=48
+GPU_COOLDOWN_SEC=0
+VERBOSE_IMAGES=0
 PYTHON="${PYTHON:-python}"
+EXTRA_ARGS=()
 
 INPUT_PATH="$1"
+ORIGINAL_INPUT_PATH="$INPUT_PATH"
 shift
 
 while [[ $# -gt 0 ]]; do
@@ -29,7 +34,18 @@ while [[ $# -gt 0 ]]; do
         --size)        SIZE="$2";        shift 2 ;;
         --fps)         FPS="$2";         shift 2 ;;
         --max_chunk)   MAX_CHUNK="$2";   shift 2 ;;
-        *)             shift ;;
+        --gpu_cooldown_sec) GPU_COOLDOWN_SEC="$2"; shift 2 ;;
+        --verbose_images) VERBOSE_IMAGES="$2"; shift 2 ;;
+        --)            shift; EXTRA_ARGS+=("$@"); break ;;
+        *)
+            EXTRA_ARGS+=("$1")
+            if [[ $# -gt 1 && "$2" != --* ]]; then
+                EXTRA_ARGS+=("$2")
+                shift 2
+            else
+                shift
+            fi
+            ;;
     esac
 done
 
@@ -51,6 +67,10 @@ $PYTHON src/testing/run_inference_video.py \
     --img_path   "$INPUT_PATH" \
     --output_dir "$OUTPUT_DIR" \
     --size       "$SIZE" \
-    --max_chunk  "$MAX_CHUNK"
+    --max_chunk  "$MAX_CHUNK" \
+    --gpu_cooldown_sec "$GPU_COOLDOWN_SEC" \
+    --verbose_images "$VERBOSE_IMAGES" \
+    --scene_id   "$(basename "${ORIGINAL_INPUT_PATH%.*}")" \
+    "${EXTRA_ARGS[@]}"
 
 echo ">> Done. Results written to: $OUTPUT_DIR"
