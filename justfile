@@ -4,6 +4,7 @@ archive := "/home/kasm-user/Downloads/Color_000200_001000_ccw_frames.tar.gz"
 frames := "data/Color_000200_001000_ccw_frames"
 out := "eval_results/demo/color_000200_001000_512_chunk16"
 model := "mda_mog_sky_l2"
+view_result := "eval_results/demo/color_000200_001000_512_balanced_chunk16/mda_mog_sky_l2"
 
 default:
     just --list
@@ -101,6 +102,49 @@ tail-log out=out lines="80":
 
 stop out=out:
     @pidfile="eval_results/logs/$(basename "{{out}}").pid"; \
+    if [[ -f "$pidfile" ]]; then \
+        pid="$(cat "$pidfile")"; \
+        pkill -TERM -P "$pid" 2>/dev/null || true; \
+        kill "$pid" 2>/dev/null || true; \
+        echo "sent TERM to pid=$pid and children"; \
+    else \
+        echo "pidfile not found: $pidfile"; \
+    fi
+
+viewer result=view_result host="0.0.0.0" port="7861":
+    uv run python src/testing/result_viewer.py \
+        --result_dir "{{result}}" \
+        --host "{{host}}" \
+        --port "{{port}}"
+
+viewer-bg result=view_result host="0.0.0.0" port="7861":
+    mkdir -p eval_results/logs
+    log="eval_results/logs/result_viewer_{{port}}.log"; \
+    pidfile="eval_results/logs/result_viewer_{{port}}.pid"; \
+    setsid bash -c 'uv run python src/testing/result_viewer.py \
+        --result_dir "{{result}}" \
+        --host "{{host}}" \
+        --port "{{port}}"' \
+        > "$log" 2>&1 < /dev/null & \
+    echo $! > "$pidfile"; \
+    echo "started pid=$(cat "$pidfile")"; \
+    echo "log=$log"; \
+    echo "url=http://127.0.0.1:{{port}}"
+
+viewer-status port="7861":
+    @pidfile="eval_results/logs/result_viewer_{{port}}.pid"; \
+    if [[ -f "$pidfile" ]]; then \
+        pid="$(cat "$pidfile")"; \
+        ps -p "$pid" -o pid=,stat=,etime=,cmd= || true; \
+        pgrep -P "$pid" -af || true; \
+    else \
+        echo "pidfile not found: $pidfile"; \
+    fi
+    @log="eval_results/logs/result_viewer_{{port}}.log"; \
+    if [[ -f "$log" ]]; then tail -n 30 "$log"; fi
+
+viewer-stop port="7861":
+    @pidfile="eval_results/logs/result_viewer_{{port}}.pid"; \
     if [[ -f "$pidfile" ]]; then \
         pid="$(cat "$pidfile")"; \
         pkill -TERM -P "$pid" 2>/dev/null || true; \

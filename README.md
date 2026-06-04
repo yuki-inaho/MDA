@@ -94,6 +94,19 @@ bash src/testing/run_demo.sh assets/examples/parkour_video.mp4 \
 
 The default model is `mda_mog_sky_l2`. Override it with `--model_name` (see the table above, or `src/testing/utils/model_choice.py` for all names). Outputs go to `--output_dir`, which defaults to `eval_results/demo/<input_basename>/`: per-frame depth maps, an optional side-view point cloud `.ply`, and per-frame `cameras.npz`.
 
+### Inspect saved results in a browser
+
+`src/testing/result_viewer.py` serves a lightweight browser viewer for saved
+`run_inference_video.py` outputs. It shows the RGB frame, colored depth image,
+and a loopable per-frame point cloud reconstructed from `raw/*.npz`.
+
+```bash
+just viewer-bg eval_results/demo/color_000200_001000_512_balanced_chunk16/mda_mog_sky_l2
+# open http://127.0.0.1:7861
+```
+
+Use `just viewer-status` to check the server and `just viewer-stop` to stop it.
+
 ## 🏋️ Training
 
 Training uses Hydra to compose an experiment config under `configs/experiment/mda/` (the `.yaml` extension is implicit). Each config finetunes a pretrained DA3 or VGGT checkpoint with **K = 4** mixture components for **10k steps** on **4 × RTX Pro 6000**, learning rate **1e-4**, batch size **48** (paper §5.1.1).
