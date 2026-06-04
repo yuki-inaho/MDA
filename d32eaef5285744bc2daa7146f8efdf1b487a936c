@@ -1,0 +1,10 @@
+Why:
+- Rerun serving, background viewer processes, and browser automation checks produce runtime artifacts that should not be accidentally staged.
+- Playwright-style checks commonly create report and result directories even when used only for local visualization debugging.
+
+How:
+- Added ignore patterns for Playwright report/result directories.
+- Added generic runtime log and pid ignores while keeping existing eval_results-specific ignore behavior intact.
+
+Validation:
+- git check-ignore -v sample.log sample.pid playwright-report/index.html test-results/output.json eval_results/logs/rerun_viewer_9090.log
