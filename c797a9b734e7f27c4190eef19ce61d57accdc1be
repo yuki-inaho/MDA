@@ -1,0 +1,16 @@
+Why:
+- Rerun displayed warnings that /camera/image, /camera/depth, and /camera/points were under a Pinhole projection, and the point cloud was not visible in the 3D view.
+- Points3D should not be logged as a child of an entity that carries Pinhole projection data.
+
+How:
+- Moved the Rerun point cloud entity from camera/points to world/points.
+- Moved RGB/depth 2D views to frame/image and frame/depth, matching the upstream Rerun visualization pattern.
+- Removed Pinhole logging from the portable .rrd export and narrowed the default 3D blueprint to world/points only.
+- Logged world ViewCoordinates and increased default point_radius from 0.0008 to 0.003 for visibility.
+
+Validation:
+- uv run python -m compileall -q src/testing/result_to_rerun.py
+- Smoke export: /tmp/mda_result_rerun_world_smoke.rrd, 2 frames
+- rerun rrd verify passed for smoke and full .rrd
+- rerun rrd print confirms /world/points and /frame/image,/frame/depth, with no Pinhole or /camera paths
+- Regenerated eval_results/demo/color_000200_001000_512_balanced_chunk16/mda_mog_sky_l2/mda_result_p95_stride2.rrd and restarted Rerun serve on 9090/9876
