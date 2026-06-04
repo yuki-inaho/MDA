@@ -1,0 +1,9 @@
+Why:
+- The sample demo completed depth inference but sideview point cloud export failed because unprojection helpers referenced by transform.py were missing.
+- The OmegaConf eval resolver printed an error on repeated imports even though the duplicate registration was harmless.
+
+How:
+- Added depth_to_cam_coords_points and closed_form_inverse_se3 to transform.py so unproject_depth_map_to_point_map can produce world-space points.
+- Reused the same SE3 inverse and camera-coordinate math already present in the Stream3R utility path.
+- Changed cfg.py to register the eval resolver only when it is not already registered.
+- Verified the demo writes depth maps, raw npz files, pointcloud.ply, and cameras.npz.
