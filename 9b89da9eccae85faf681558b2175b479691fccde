@@ -1,0 +1,16 @@
+Why:
+- The Rerun point cloud was visible after moving it outside the Pinhole hierarchy, but the rendered points were too large and the default export was too sparse for inspection.
+
+How:
+- Reduced the default Rerun Points3D radius from 0.003 to 0.0012.
+- Increased the default exporter max_points from 15000 to 60000.
+- Updated just viewer-rrd defaults to max_points=60000 and point_radius=0.0012, and exposed point_radius as a recipe parameter.
+- Updated README to document the denser export defaults.
+
+Validation:
+- uv run python -m compileall -q src/testing/result_to_rerun.py
+- just -n viewer-rrd shows max_points=60000 and point_radius=0.0012
+- Smoke export and rerun rrd verify passed for /tmp/mda_result_dense_smoke.rrd
+- Regenerated eval_results/demo/color_000200_001000_512_balanced_chunk16/mda_mog_sky_l2/mda_result_p95_stride2.rrd with 401 frames, max_points=60000, point_radius=0.0012; final size 684M
+- rerun rrd verify passed for the full dense .rrd
+- Confirmed no Rerun serve process is running on 9090/9876
