@@ -155,7 +155,7 @@ viewer-stop port="7861":
         echo "pidfile not found: $pidfile"; \
     fi
 
-viewer-rrd result=view_result rrd="" max_points="12000" frame_stride="2" depth_percentile="95":
+viewer-rrd result=view_result rrd="" max_points="60000" frame_stride="2" depth_percentile="95" point_radius="0.0012":
     @out="{{rrd}}"; \
     if [[ -z "$out" ]]; then out="{{result}}/mda_result_p95_stride2.rrd"; fi; \
     uv run --extra viz python src/testing/result_to_rerun.py \
@@ -163,7 +163,8 @@ viewer-rrd result=view_result rrd="" max_points="12000" frame_stride="2" depth_p
         --rrd "$out" \
         --max_points "{{max_points}}" \
         --frame_stride "{{frame_stride}}" \
-        --depth_percentile "{{depth_percentile}}"
+        --depth_percentile "{{depth_percentile}}" \
+        --point_radius "{{point_radius}}"
 
 rerun-open rrd=view_rrd:
     uv run --extra viz rerun "{{rrd}}"

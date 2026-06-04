@@ -112,7 +112,7 @@ def get_args() -> argparse.Namespace:
     parser.add_argument("--end_frame", type=int, default=-1, help="Exclusive end frame. -1 means all frames.")
     parser.add_argument("--frame_stride", type=int, default=1)
     parser.add_argument("--max_frames", type=int, default=0, help="0 means no limit.")
-    parser.add_argument("--max_points", type=int, default=15000)
+    parser.add_argument("--max_points", type=int, default=60000)
     parser.add_argument("--stride", type=int, default=0, help="0 chooses a stride from --max_points.")
     parser.add_argument("--depth_min", type=float, default=0.0)
     parser.add_argument("--depth_max", type=float, default=float("inf"))
@@ -127,7 +127,7 @@ def get_args() -> argparse.Namespace:
     parser.add_argument("--depth_edge_rtol", type=float, default=0.03)
     parser.add_argument("--mask_black", action="store_true")
     parser.add_argument("--mask_white", action="store_true")
-    parser.add_argument("--point_radius", type=float, default=0.003)
+    parser.add_argument("--point_radius", type=float, default=0.0012)
     parser.add_argument("--progress", action=argparse.BooleanOptionalAction, default=True)
     return parser.parse_args()
 
@@ -167,7 +167,8 @@ def main() -> None:
     rr.disconnect()
     print(
         f"wrote {rrd_path} "
-        f"frames={len(indices)} max_points={args.max_points} depth_percentile={args.depth_percentile}"
+        f"frames={len(indices)} max_points={args.max_points} "
+        f"point_radius={args.point_radius} depth_percentile={args.depth_percentile}"
     )
 
 

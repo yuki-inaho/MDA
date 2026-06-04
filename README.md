@@ -119,8 +119,9 @@ just rerun-open
 just rerun-serve
 ```
 
-The default `viewer-rrd` recipe uses `frame_stride=2`, `max_points=12000`, and
-`depth_percentile=95` to keep the recording practical to move between machines.
+The default `viewer-rrd` recipe uses `frame_stride=2`, `max_points=60000`,
+`point_radius=0.0012`, and `depth_percentile=95` to keep the recording practical
+to move between machines while showing denser points.
 The Rerun export is a per-frame camera-space point cloud because the standard
 demo result does not include global camera poses unless side-view export was
 enabled during inference.
