@@ -1,0 +1,11 @@
+Why:
+- uv sync needed to reproduce the demo environment from a clean checkout.
+- The original dependency set was too broad for uv resolution and missed packages required by checkpoint loading and the demo path.
+- Runtime artifacts such as .venv, checkpoints, and eval_results should not be committed.
+
+How:
+- Added .python-version and uv.lock for a Python 3.10 uv-managed environment.
+- Pinned CUDA 12.8 PyTorch packages through a dedicated uv index.
+- Added runtime dependencies found while running the demo, including lightning-bolts and setuptools<81 for checkpoint compatibility.
+- Kept gsplat out of the default/all extras because it builds an optional CUDA extension that is not needed for the demo.
+- Expanded .gitignore for local environments, logs, checkpoints, eval outputs, and skyseg.onnx.
