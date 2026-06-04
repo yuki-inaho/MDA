@@ -1,0 +1,3 @@
+Why: Long sequence inference did not expose enough intermediate state; users could only infer progress from noisy image-load logs or final files. GPU sharing also needed a gentler run mode while other projects use the same device.
+
+How: Added progress.json reporting with flushed stage logs for image loading, chunk inference, raw npz saving, depth png/npy saving, sideview, completion, and failure. Added optional chunk cooldown and quieter image logging. Added just recipes for sync/weights/extract/inspect/smoke/infer/background/status/tail-log/stop so runs can be monitored or stopped without blocking the chat. Extended save_depth_maps with an optional callback while preserving existing callers.
