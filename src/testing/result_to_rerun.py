@@ -50,10 +50,10 @@ def _make_blueprint() -> object | None:
 
     return rrb.Blueprint(
         rrb.Horizontal(
-            rrb.Spatial3DView(origin="camera"),
+            rrb.Spatial3DView(origin="world", contents=["world/points"], name="Point cloud"),
             rrb.Vertical(
-                rrb.Spatial2DView(origin="camera/image"),
-                rrb.Spatial2DView(origin="camera/depth"),
+                rrb.Spatial2DView(origin="frame/image", name="RGB"),
+                rrb.Spatial2DView(origin="frame/depth", name="Depth"),
             ),
         ),
         collapse_panels=True,
@@ -85,26 +85,11 @@ def _log_frame(rr: object, scene: ResultScene, index: int, args: argparse.Namesp
         mask_white=args.mask_white,
     )
 
-    height, width = depth.shape
-    fx = fy = max(height, width) * max(float(args.focal_scale), 0.01)
-    cx = (width - 1) * 0.5
-    cy = (height - 1) * 0.5
-    intrinsics = np.array([[fx, 0.0, cx], [0.0, fy, cy], [0.0, 0.0, 1.0]], dtype=np.float32)
-
     rr.set_time("frame", sequence=index)
+    rr.log("frame/image", rr.Image(rgb))
+    rr.log("frame/depth", rr.DepthImage(depth))
     rr.log(
-        "camera",
-        rr.Pinhole(
-            image_from_camera=intrinsics,
-            width=width,
-            height=height,
-            image_plane_distance=0.02,
-        ),
-    )
-    rr.log("camera/image", rr.Image(rgb))
-    rr.log("camera/depth", rr.DepthImage(depth))
-    rr.log(
-        "camera/points",
+        "world/points",
         rr.Points3D(point_cloud.points, colors=point_cloud.colors, radii=args.point_radius),
     )
 
@@ -142,7 +127,7 @@ def get_args() -> argparse.Namespace:
     parser.add_argument("--depth_edge_rtol", type=float, default=0.03)
     parser.add_argument("--mask_black", action="store_true")
     parser.add_argument("--mask_white", action="store_true")
-    parser.add_argument("--point_radius", type=float, default=0.0008)
+    parser.add_argument("--point_radius", type=float, default=0.003)
     parser.add_argument("--progress", action=argparse.BooleanOptionalAction, default=True)
     return parser.parse_args()
 
@@ -174,6 +159,7 @@ def main() -> None:
         rr.save(str(rrd_path), default_blueprint=blueprint)
     else:
         rr.save(str(rrd_path))
+    rr.log("world", rr.ViewCoordinates.RIGHT_HAND_Y_UP, static=True)
 
     for index in _iter_with_progress(indices, args.progress):
         _log_frame(rr, scene, index, args)
