@@ -7,7 +7,7 @@ name = "mda"
 version = "0.0.0"
 description = "Modeling Depth Ambiguity: A Mixture-Density Representation for Flying-Point-Free Depth Estimation"
 readme = "README.md"
-requires-python = ">=3.9, <=3.13"
+requires-python = ">=3.10,<3.11"
 license = { text = "Apache-2.0" }
 authors = [
     { name = "Siyuan Bian", email = "siyuanb@nvidia.com" },
@@ -16,39 +16,58 @@ authors = [
 ]
 
 dependencies = [
-    "pre-commit",
-    "trimesh",
-    "torch>=2",
-    "torchvision",
+    "accelerate",
+    "addict",
     "einops",
+    "e3nn",
+    "evo",
+    "fastapi",
     "huggingface_hub",
     "imageio",
-    "numpy<2",
-    "opencv-python",
-    "xformers",
-    "open3d",
-    "fastapi",
-    "uvicorn",
-    "requests",
-    "typer",
-    "pillow",
-    "omegaconf",
-    "evo",
-    "e3nn",
-    "moviepy",
-    "plyfile",
-    "pillow_heif",
-    "safetensors",
-    "uvicorn",
+    "lightning-bolts",
+    "matplotlib",
     "moviepy==1.0.3",
-    "typer>=0.9.0",
+    "numpy<2",
+    "omegaconf",
+    "open3d",
+    "opencv-python",
+    "pillow",
+    "pillow_heif",
+    "plyfile",
+    "pre-commit",
     "pycolmap",
+    "pyyaml",
+    "requests",
+    "safetensors",
+    "scipy",
+    "setuptools<81",
+    "sympy",
+    "torch==2.7.1",
+    "torchaudio==2.7.1",
+    "torchvision==0.22.1",
+    "trimesh",
+    "tqdm",
+    "typer>=0.9.0",
+    "uvicorn",
+    "xformers==0.0.31.post1",
 ]
 
 [project.optional-dependencies]
 app = ["gradio>=5", "pillow>=9.0"] # requires that python3>=3.10
-gs = ["gsplat @ git+https://github.com/nerfstudio-project/gsplat.git@0b4dddf04cb687367602c01196913cde6a743d70"]
-all = ["mda[app,gs]"]
+# gsplat builds a CUDA extension and is not required for the demo path.
+gs = []
+train = ["hydra-core", "lightning", "rootutils", "torchmetrics", "peft", "rich"]
+all = ["mda[app]"]
+
+[tool.uv.sources]
+torch = { index = "pytorch-cu128" }
+torchaudio = { index = "pytorch-cu128" }
+torchvision = { index = "pytorch-cu128" }
+
+[[tool.uv.index]]
+name = "pytorch-cu128"
+url = "https://download.pytorch.org/whl/cu128"
+explicit = true
 
 
 [project.scripts]
