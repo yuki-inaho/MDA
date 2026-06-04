@@ -16,6 +16,8 @@ dist/
 .pytest_cache/
 htmlcov/
 .tox/
+playwright-report/
+test-results/
 wandb/
 lightning_logs/
 mlruns/
@@ -33,6 +35,10 @@ input_images*/
 
 # OS files
 .DS_Store
+
+# Runtime logs / background jobs
+*.log
+*.pid
 
 .vscode
 src/debug_main.py
